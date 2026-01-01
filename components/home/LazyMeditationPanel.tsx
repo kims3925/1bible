@@ -56,7 +56,7 @@ export function LazyMeditationPanel() {
 
       {/* 게으른묵상 실행하기 버튼 */}
       <button
-        onClick={() => setShowMeditationModal(true)}
+        onClick={() => router.push('/meditation/new?passageId=ps-23')}
         className="mb-4 w-full rounded-xl border-2 border-primary bg-primary/5 py-3 font-semibold text-primary transition-all hover:bg-primary/10 active:scale-[0.98]"
       >
         게으른묵상 실행하기
