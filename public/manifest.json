@@ -1,0 +1,27 @@
+{
+  "name": "게을러도성경일독",
+  "short_name": "성경일독",
+  "description": "최소 입력 · 최대 은혜 - 눈은 쉬어도, 말씀은 흐르게",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["lifestyle", "books"],
+  "lang": "ko",
+  "dir": "ltr"
+}
