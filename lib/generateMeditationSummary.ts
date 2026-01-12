@@ -5,6 +5,15 @@
  * 특수 케이스 (무덤덤, 잘 모르겠음, 아직 결단 못함)를 담백하게 처리합니다.
  */
 
+// 감정 ID를 한글 라벨로 변환
+const EMOTION_LABELS: Record<string, string> = {
+  joy: '기쁨',
+  peace: '평안',
+  conviction: '찔림',
+  neutral: '무덤덤',
+  confusion: '혼란',
+};
+
 export interface MeditationInput {
   graceTags: string[];
   emotionPrimary: string;
@@ -38,8 +47,11 @@ function buildGracePhrase(graceTags: string[]): string {
  * 감정을 자연스러운 문구로 변환
  */
 function buildEmotionPhrase(emotionPrimary: string, emotionSecondary: string[]): string {
+  // 영어 ID를 한글 라벨로 변환
+  const emotionLabel = EMOTION_LABELS[emotionPrimary] || emotionPrimary;
+
   // 무덤덤 특수 케이스
-  if (emotionPrimary === '무덤덤') {
+  if (emotionLabel === '무덤덤') {
     if (emotionSecondary.length > 0) {
       return `${emotionSecondary[0]}한 마음이지만, 말씀을 들은 것`;
     }
@@ -47,10 +59,10 @@ function buildEmotionPhrase(emotionPrimary: string, emotionSecondary: string[]):
   }
 
   if (emotionSecondary.length > 0) {
-    return `${emotionPrimary}과(와) ${emotionSecondary[0]}`;
+    return `${emotionLabel}과(와) ${emotionSecondary[0]}`;
   }
 
-  return emotionPrimary;
+  return emotionLabel;
 }
 
 /**
