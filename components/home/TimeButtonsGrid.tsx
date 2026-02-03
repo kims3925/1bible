@@ -81,6 +81,18 @@ export function TimeButtonsGrid({ onStartSession }: TimeButtonsGridProps) {
         />
       </div>
 
+      {/* 영어 읽기 옵션 */}
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <TimeButton
+          label="영어로읽기"
+          onClick={() => handleTimeSelect(30, 'listen', 'english')}
+        />
+        <TimeButton
+          label="영어한국어번갈아읽기"
+          onClick={() => handleTimeSelect(30, 'listen', 'bilingual')}
+        />
+      </div>
+
       {/* 시간 선택 모달 */}
       {showTimeModal && (
         <>
