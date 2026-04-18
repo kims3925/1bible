@@ -42,7 +42,7 @@ export default function RootLayout({
         />
       </head>
       <body className="font-sans">
-        <main className="pb-20">{children}</main>
+        <main>{children}</main>
         <BottomNav />
       </body>
     </html>

@@ -8,13 +8,27 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useNotesStore, STATE_TAG_LABELS, ACTION_TAG_LABELS } from '@/stores';
+import { useNotesStore, useAuthStore, STATE_TAG_LABELS, ACTION_TAG_LABELS } from '@/stores';
+import { LoginPrompt } from '@/components/ui/LoginPrompt';
 import type { MeditationStateTag, MeditationActionTag } from '@/types';
 
 export function LazyMeditationPanel() {
   const router = useRouter();
   const { todayVerse, addMeditationNote } = useNotesStore();
+  const { isLoggedIn } = useAuthStore();
   const [showMeditationModal, setShowMeditationModal] = useState(false);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [loginPromptMessage, setLoginPromptMessage] = useState('');
+
+  /** 로그인 필요 기능 클릭 시 */
+  const requireLogin = (action: () => void, message: string) => {
+    if (isLoggedIn) {
+      action();
+    } else {
+      setLoginPromptMessage(message);
+      setShowLoginPrompt(true);
+    }
+  };
   const [selectedState, setSelectedState] = useState<MeditationStateTag | null>(null);
   const [oneLine, setOneLine] = useState('');
   const [selectedAction, setSelectedAction] = useState<MeditationActionTag | null>(null);
@@ -56,7 +70,12 @@ export function LazyMeditationPanel() {
 
       {/* 게으른묵상 실행하기 버튼 */}
       <button
-        onClick={() => router.push('/meditation/new?passageId=ps-23')}
+        onClick={() =>
+          requireLogin(
+            () => router.push('/meditation/new?passageId=ps-23'),
+            '묵상 기록을 저장하려면 로그인이 필요합니다.'
+          )
+        }
         className="mb-4 w-full rounded-xl border-2 border-primary bg-primary/5 py-3 font-semibold text-primary transition-all hover:bg-primary/10 active:scale-[0.98]"
       >
         게으른묵상 실행하기
@@ -65,13 +84,23 @@ export function LazyMeditationPanel() {
       {/* 노트 버튼들 */}
       <div className="flex gap-2">
         <button
-          onClick={() => router.push('/notes')}
+          onClick={() =>
+            requireLogin(
+              () => router.push('/notes'),
+              '묵상 노트를 보려면 로그인이 필요합니다.'
+            )
+          }
           className="flex-1 rounded-xl border border-border py-3 font-medium hover:bg-muted"
         >
           내묵상노트
         </button>
         <button
-          onClick={() => router.push('/prayers')}
+          onClick={() =>
+            requireLogin(
+              () => router.push('/prayers'),
+              '기도 노트를 보려면 로그인이 필요합니다.'
+            )
+          }
           className="flex-1 rounded-xl border border-border py-3 font-medium hover:bg-muted"
         >
           내기도노트
@@ -170,6 +199,13 @@ export function LazyMeditationPanel() {
           </div>
         </>
       )}
+
+      {/* 비회원 로그인 유도 모달 */}
+      <LoginPrompt
+        isOpen={showLoginPrompt}
+        onClose={() => setShowLoginPrompt(false)}
+        message={loginPromptMessage}
+      />
     </section>
   );
 }

@@ -9,6 +9,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores';
+import { captureRefFromUrl, attachRefToEvent, consumeRefForSignup } from '@/lib/analytics/ref-tracker';
 import type { Provider } from '@supabase/supabase-js';
 
 type AuthTab = 'login' | 'signup';
@@ -71,6 +72,23 @@ function AuthContent() {
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
 
+  // ref / plan 파라미터 추출
+  const refParam = searchParams.get('ref') || '';
+  const planParam = searchParams.get('plan') || '';
+
+  /** 로그인/가입 성공 후 이동할 경로 결정 */
+  const getPostAuthPath = () => {
+    // 기본은 성경읽기 홈 화면
+    // (매니저 대시보드는 홈 화면의 메뉴에서 직접 접근)
+    return '/home';
+  };
+
+  // ref 파라미터를 쿠키에 저장 (랜딩에서 넘어온 경우)
+  useEffect(() => {
+    captureRefFromUrl();
+    attachRefToEvent('auth_page_viewed', { plan: planParam });
+  }, [planParam]);
+
   // 에러 파라미터 처리
   useEffect(() => {
     const authError = searchParams.get('error');
@@ -84,10 +102,10 @@ function AuthContent() {
     refreshSession();
   }, [refreshSession]);
 
-  // 이미 로그인 되어있으면 매니저로 이동
+  // 이미 로그인 되어있으면 적절한 곳으로 이동
   useEffect(() => {
     if (isLoggedIn) {
-      router.replace('/manager');
+      router.replace(getPostAuthPath());
     }
   }, [isLoggedIn, router]);
 
@@ -115,7 +133,7 @@ function AuthContent() {
     }
     const result = await signInWithEmail(email, password);
     if (result.success) {
-      router.push('/manager');
+      router.push(getPostAuthPath());
     } else {
       if (result.error?.includes('Invalid login')) {
         setError('이메일 또는 비밀번호가 올바르지 않습니다');
@@ -147,7 +165,9 @@ function AuthContent() {
     }
     const result = await signUpWithEmail(email, password, username);
     if (result.success) {
-      router.push('/manager');
+      consumeRefForSignup(); // ref 쿠키 소비 (가입 완료)
+      attachRefToEvent('signup_completed', { method: 'email', username });
+      router.push(getPostAuthPath());
     } else {
       if (result.error?.includes('already registered')) {
         setError('이미 가입된 이메일입니다. 로그인을 시도해주세요');
@@ -160,6 +180,7 @@ function AuthContent() {
   const handleSocialLogin = async (provider: string) => {
     setSocialLoading(provider);
     setError('');
+    attachRefToEvent('auth_provider_clicked', { provider });
     try {
       await signInWithOAuth(provider as Provider);
     } catch {
@@ -183,6 +204,11 @@ function AuthContent() {
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-bold text-white">게을러도 성경일독</h1>
           <p className="mt-1 text-sm text-slate-400">작심삼일 NO! 이제 작심평생</p>
+          {planParam === 'premium' && (
+            <div className="mt-3 inline-block rounded-full bg-blue-500/20 px-4 py-1 text-xs font-semibold text-blue-400">
+              Premium 플랜 가입
+            </div>
+          )}
         </div>
 
         {/* 카드 */}

@@ -1,66 +1,127 @@
 /**
- * OAuth 콜백 라우트
- * 소셜 로그인(네이버/카카오/구글/애플) 후 Supabase가 리다이렉트하는 엔드포인트
- * code를 세션으로 교환 → 매니저 대시보드로 이동
+ * OAuth/매직링크 콜백
+ *
+ * Supabase가 보내주는 code를 session으로 교환하고,
+ * 그 사이에 게스트 체험 데이터를 user 계정으로 이전(claim)한다.
+ *
+ * 쿼리 파라미터:
+ *   code   - Supabase OAuth code (필수)
+ *   next   - 이동할 경로 (기본 /home)
+ *   plan   - 'premium' 이면 결제 페이지로
+ *   ref    - 유입 추적용 (profile에 저장)
  */
 
-import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 
-export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+export async function GET(request: NextRequest) {
+  const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/manager';
+  const next = searchParams.get('next') ?? '/home';
+  const plan = searchParams.get('plan');
+  const ref = searchParams.get('ref');
 
-  if (code) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+  if (!code) {
+    return NextResponse.redirect(`${origin}/auth?error=missing_code`);
+  }
 
-    if (!error) {
-      // 로그인 성공 → profiles 테이블에 행이 없으면 자동 생성
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('id', user.id)
-          .single();
+  const supabase = await createSupabaseServerClient();
 
-        if (!profile) {
-          // Hub_Link와 동일한 패턴: 프론트에서 profiles upsert
-          const metadata = user.user_metadata;
-          await supabase.from('profiles').upsert({
-            id: user.id,
-            email: user.email,
-            username: metadata?.preferred_username
-              || metadata?.name?.replace(/\s/g, '').toLowerCase()
-              || `user_${user.id.slice(0, 8)}`,
-            display_name: metadata?.full_name
-              || metadata?.name
-              || metadata?.preferred_username
-              || user.email?.split('@')[0]
-              || '사용자',
-            avatar_url: metadata?.avatar_url || metadata?.picture || null,
-            plan: 'free',
-            role: 'customer',
-            platform: 'bible',
-          }, { onConflict: 'id' });
+  // 1) code → session 교환
+  const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+  if (error || !data.user) {
+    return NextResponse.redirect(
+      `${origin}/auth?error=${encodeURIComponent(error?.message ?? 'unknown')}`
+    );
+  }
+
+  const user = data.user;
+
+  // 2) 프로필 upsert (신규 가입자 → 자동 생성, 기존 → 업데이트)
+  const metadata = user.user_metadata;
+  await supabase.from('profiles').upsert(
+    {
+      id: user.id,
+      email: user.email,
+      username:
+        metadata?.preferred_username ||
+        metadata?.name?.replace(/\s/g, '').toLowerCase() ||
+        `user_${user.id.slice(0, 8)}`,
+      display_name:
+        metadata?.full_name ||
+        metadata?.name ||
+        metadata?.preferred_username ||
+        user.email?.split('@')[0] ||
+        '사용자',
+      avatar_url: metadata?.avatar_url || metadata?.picture || null,
+      plan: 'free',
+      role: 'customer',
+      platform: 'bible',
+    },
+    { onConflict: 'id' }
+  );
+
+  // 3) 게스트 체험 데이터 이전 (claim)
+  const guestId = request.cookies.get('bible_guest_id')?.value;
+  if (guestId) {
+    try {
+      const { data: claimCount, error: claimError } = await supabase.rpc(
+        'claim_trial_assessments',
+        {
+          p_guest_id: guestId,
+          p_user_id: user.id,
+        }
+      );
+      if (claimError) {
+        console.warn('[claim] failed:', claimError.message);
+      } else if (typeof claimCount === 'number' && claimCount > 0) {
+        // 가입 보너스 포인트 지급 (테이블 있으면)
+        try {
+          await supabase.from('points_ledger').insert({
+            user_id: user.id,
+            amount: 50,
+            reason: 'signup_bonus',
+          });
+        } catch {
+          // points_ledger 테이블이 아직 없을 수 있음
         }
       }
-
-      const forwardedHost = request.headers.get('x-forwarded-host');
-      const isLocalEnv = process.env.NODE_ENV === 'development';
-
-      if (isLocalEnv) {
-        return NextResponse.redirect(`${origin}${next}`);
-      } else if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`);
-      } else {
-        return NextResponse.redirect(`${origin}${next}`);
-      }
+    } catch {
+      // claim 실패해도 로그인은 성공
     }
   }
 
-  // 에러 시 로그인 페이지로
-  return NextResponse.redirect(`${origin}/auth?error=auth_callback_error`);
+  // 4) 목적지 결정
+  // 안전 검증 — 외부 URL 차단 (open redirect 방지)
+  const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/home';
+
+  let redirectPath: string;
+  if (plan === 'premium') {
+    redirectPath = '/billing/subscribe?plan=premium';
+  } else {
+    redirectPath = safeNext;
+  }
+
+  // 게스트 쿠키 삭제 (claim 완료 후)
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  const isLocalEnv = process.env.NODE_ENV === 'development';
+
+  let redirectUrl: string;
+  if (isLocalEnv) {
+    redirectUrl = `${origin}${redirectPath}`;
+  } else if (forwardedHost) {
+    redirectUrl = `https://${forwardedHost}${redirectPath}`;
+  } else {
+    redirectUrl = `${origin}${redirectPath}`;
+  }
+
+  const response = NextResponse.redirect(redirectUrl);
+
+  // 게스트 쿠키 삭제
+  if (guestId) {
+    response.cookies.delete('bible_guest_id');
+  }
+
+  return response;
 }

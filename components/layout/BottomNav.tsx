@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   {
-    href: '/',
+    href: '/home',
     label: '홈',
     icon: (
       <svg
@@ -110,8 +110,9 @@ const navItems = [
 export function BottomNav() {
   const pathname = usePathname();
 
-  // 플레이어/세션 페이지에서는 네비게이션 숨김
-  if (pathname === '/player' || pathname === '/session') {
+  // 특정 페이지에서는 네비게이션 숨김
+  const hiddenPaths = ['/player', '/session', '/auth', '/landing', '/manager', '/admin', '/g', '/explore', '/trial', '/contact'];
+  if (hiddenPaths.some((p) => pathname === p || pathname.startsWith(p + '/')) || pathname === '/') {
     return null;
   }
 
@@ -121,7 +122,7 @@ export function BottomNav() {
         {navItems.map((item) => {
           const isActive =
             pathname === item.href ||
-            (item.href !== '/' && pathname.startsWith(item.href));
+            pathname.startsWith(item.href + '/');
 
           return (
             <Link

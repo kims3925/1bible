@@ -7,6 +7,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createClient } from '@/lib/supabase/client';
+import { claimTrialData } from '@/lib/trial/guest-session';
 import type { UserLink, ProfileTheme } from '@/types';
 import type { User, Session, Provider } from '@supabase/supabase-js';
 
@@ -112,6 +113,13 @@ export const useAuthStore = create<AuthState>()(
             platform: 'bible',
           }, { onConflict: 'id' });
 
+          // 게스트 체험 데이터 이전 (비로그인 검사 결과 → 계정에 연결)
+          try {
+            await claimTrialData(data.user.id);
+          } catch {
+            // claim 실패해도 가입은 성공
+          }
+
           await get().syncProfile(data.user);
         }
 
@@ -134,6 +142,13 @@ export const useAuthStore = create<AuthState>()(
         }
 
         if (data.user) {
+          // 게스트 체험 데이터 이전 (검사 후 로그인한 경우)
+          try {
+            await claimTrialData(data.user.id);
+          } catch {
+            // claim 실패해도 로그인 성공
+          }
+
           await get().syncProfile(data.user);
         }
 

@@ -8,3 +8,6 @@ export { useMeditationStore } from './useMeditationStore';
 export { useProgressStore } from './useProgressStore';
 export { useSessionStore } from './useSessionStore';
 export { useNotesStore, STATE_TAG_LABELS, ACTION_TAG_LABELS } from './useNotesStore';
+export { useAuthStore } from './useAuthStore';
+export { useBlockStore } from './useBlockStore';
+export { usePointStore, SHOP_ITEMS, BADGES } from './usePointStore';
